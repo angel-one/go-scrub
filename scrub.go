@@ -5,123 +5,6 @@
  * MIT License
  */
 
-// Package scrub implements a scrubbing utility to hide sensitive fields from a struct.
-//
-// This utility can be used to purge sensitive fields from a deeply nested struct
-// at any level. This is useful for scenarios such as logging structures which may
-// contain user passwords, secret keys, passphrases, etc.
-//
-// Notes & Caveates
-//
-// Only exported fields of a struct can be scrubbed (fields starting with a
-// capital letter). Reflect package cannot modify unexported (private) fields.
-// Also, The input struct must be passed by its address, otherwise the values
-// of its fields cannot be changed.
-//
-// Example:
-//
-//		import "github.com/grandeto/go-scrub"
-//
-//		// Have a struct with some sensitive fields.
-//		type testScrub struct {
-//			Username string
-//			Password string
-//			Codes    []string
-//		}
-//
-//		type fieldScrubOpts struct {
-//			maskingSymbol string
-//			partScrubConf *PartScrubConf
-//		}
-//
-//		func newFieldScrubOpts(
-//			maskingSymbol string,
-//			partScrubConf *PartScrubConf,
-//		) *fieldScrubOpts {
-//			return &fieldScrubOpts{
-//				maskingSymbol,
-//				partScrubConf,
-//			}
-//		}
-//
-//		func (f *fieldScrubOpts) GetMaskingSymbol() string {
-//			return f.maskingSymbol
-//		}
-//
-//		func (f *fieldScrubOpts) PartMaskEnabled() bool {
-//			if f.partScrubConf == nil {
-//				return false
-//			}
-//
-//			return f.partScrubConf.PartMaskEnabled
-//		}
-//
-//		func (f *fieldScrubOpts) PartMaskMinFldLen() int {
-//			if f.partScrubConf == nil {
-//				return 0
-//			}
-//
-//			return f.partScrubConf.PartMaskMinFldLen
-//		}
-//
-//		func (f *fieldScrubOpts) PartMaskMaxFldLen() int {
-//			if f.partScrubConf == nil {
-//				return 0
-//			}
-//
-//			return f.partScrubConf.PartMaskMaxFldLen
-//		}
-//
-//		func (f *fieldScrubOpts) PartMaskVisibleFrontLen() int {
-//			if f.partScrubConf == nil {
-//				return 0
-//			}
-//
-//			return f.partScrubConf.VisibleFrontLen
-//		}
-//
-//		func (f *fieldScrubOpts) PartMaskVisibleBackOnlyIfFldLenGreaterThan() int {
-//			if f.partScrubConf == nil {
-//				return 0
-//			}
-//
-//			return f.partScrubConf.VisibleBackOnlyIfFldLenGreaterThan
-//		}
-//
-//		func (f *fieldScrubOpts) PartMaskVisibleBackLen() int {
-//			if f.partScrubConf == nil {
-//				return 0
-//			}
-//
-//			return f.partScrubConf.VisibleBackLen
-//		}
-//
-//		// Create a struct with some sensitive data.
-//		T := &testScrub{
-//			Username: "administrator",
-//			Password: "my_secret_passphrase",
-//			Codes:    []string{"pass1", "pass2", "pass3"},
-//		}
-//
-//		// Create empty instance of testScrub
-//		emptyT := &testScrub{}
-//
-//		// Create a set of field names to scrub (default is 'password').
-//		fieldsToScrub := map[string]FieldScrubOptioner{
-//			"password":  newFieldScrubOpts("*", nil),
-//			"codes":      newFieldScrubOpts(".", nil),
-//		}
-//
-//		scrub.MaskLenVary = true
-//
-//		// Call the util API to get a JSON formatted string with scrubbed field values.
-//		out := scrub.Scrub(emptyT, T, fieldsToScrub, scrub.JSONScrub)
-//
-//		// Log the scrubbed string without worrying about prying eyes!
-//		log.Println(out)
-//		// OUTPUT: {username:administrator Password:******************** Codes:[..... ..... .....]}
-//
-//		// NOTE: Please reffer to `scrub_test.go` for all supported scenarios
 package scrub
 
 import (
@@ -150,7 +33,7 @@ var (
 	// defaultToScrub contains default field names to scrub.
 	// NOTE: these fields should be all lowercase. Comparison is case insensitive.
 	defaultToScrub map[string]FieldScrubOptioner = map[string]FieldScrubOptioner{
-		"password": &defaultFieldScrubOpts{},
+		"password": DefaultFieldScrubOpts,
 	}
 	// MaskLenVary specifies mask length equals DefaultMaskLen or mask length equals to value length
 	MaskLenVary bool = false
@@ -167,34 +50,8 @@ type FieldScrubOptioner interface {
 	PartMaskVisibleBackLen() int
 }
 
-type defaultFieldScrubOpts struct{}
-
-func (dfo *defaultFieldScrubOpts) GetMaskingSymbol() string {
-	return defaultMaskSymbol
-}
-
-func (dfo *defaultFieldScrubOpts) PartMaskEnabled() bool {
-	return false
-}
-
-func (dfo *defaultFieldScrubOpts) PartMaskMinFldLen() int {
-	return 0
-}
-
-func (dfo *defaultFieldScrubOpts) PartMaskMaxFldLen() int {
-	return 0
-}
-
-func (dfo *defaultFieldScrubOpts) PartMaskVisibleFrontLen() int {
-	return 0
-}
-
-func (dfo *defaultFieldScrubOpts) PartMaskVisibleBackOnlyIfFldLenGreaterThan() int {
-	return 0
-}
-
-func (dfo *defaultFieldScrubOpts) PartMaskVisibleBackLen() int {
-	return 0
+var DefaultFieldScrubOpts = FieldScrubOpts{
+	MaskingSymbol: defaultMaskSymbol,
 }
 
 // PartScrubConf provides options for partitial field masking
@@ -224,6 +81,39 @@ func NewPartScrubConf(
 		visibleBackOnlyIfFldLenGreaterThan,
 		visibleBackLen,
 	}
+}
+
+type FieldScrubOpts struct {
+	PartScrubConf
+	MaskingSymbol string
+}
+
+func (f FieldScrubOpts) GetMaskingSymbol() string {
+	return f.MaskingSymbol
+}
+
+func (f FieldScrubOpts) PartMaskEnabled() bool {
+	return f.PartScrubConf.PartMaskEnabled
+}
+
+func (f FieldScrubOpts) PartMaskMinFldLen() int {
+	return f.PartScrubConf.PartMaskMinFldLen
+}
+
+func (f FieldScrubOpts) PartMaskMaxFldLen() int {
+	return f.PartScrubConf.PartMaskMaxFldLen
+}
+
+func (f FieldScrubOpts) PartMaskVisibleFrontLen() int {
+	return f.PartScrubConf.VisibleFrontLen
+}
+
+func (f FieldScrubOpts) PartMaskVisibleBackOnlyIfFldLenGreaterThan() int {
+	return f.PartScrubConf.VisibleBackOnlyIfFldLenGreaterThan
+}
+
+func (f FieldScrubOpts) PartMaskVisibleBackLen() int {
+	return f.PartScrubConf.VisibleBackLen
 }
 
 // Scrub scrubs all the specified string fields in the 'target' struct
@@ -430,6 +320,10 @@ func scrubInternalMap(targetMap reflect.Value, fieldsToScrub map[string]FieldScr
 			if mask, ok := doMasking(v.Elem(), k.String(), fieldsToScrub, false); ok {
 				targetMap.SetMapIndex(reflect.ValueOf(k.String()), reflect.ValueOf(mask))
 			}
+		}
+
+		if v.Elem().Kind() == reflect.Map {
+			scrubInternalMap(v.Elem(), fieldsToScrub)
 		}
 
 		if v.Elem().Kind() == reflect.Array || v.Elem().Kind() == reflect.Slice {
